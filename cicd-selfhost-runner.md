@@ -1186,50 +1186,114 @@ watch -n 10 ./monitor.sh
 <details>
 <summary>คำตอบ</summary>
 
- เขียนคำตอบลงในช่องนี้
+<p>
+Pull-based Model ของ Self-Hosted Runner คือรูปแบบการทำงานที่ Runner
+จะเป็นฝ่ายเชื่อมต่อออกไปหา GitHub เอง เพื่อสอบถามว่ามีงาน (Job)
+ใหม่จาก Workflow หรือไม่ เมื่อมีงาน Runner จะดึง (Pull)
+งานนั้นมาประมวลผลบนเครื่องของตนเอง
+</p>
 
+<p><strong>ข้อดี</strong></p>
+<ul>
+  <li>ไม่ต้องเปิดพอร์ตจากภายนอกเข้ามาที่เครื่อง Runner</li>
+  <li>ลดความเสี่ยงด้านความปลอดภัย</li>
+  <li>เหมาะกับการใช้งานในเครือข่ายภายใน (LAN / University / Company)</li>
+  <li>ควบคุมสภาพแวดล้อมการทำงานได้เอง เช่น OS, Software, Docker</li>
+</ul>
 
 </details>
+
 
 ### 2. ทำไม Pull-based ปลอดภัยกว่า Push-based
 
 <details>
 <summary>คำตอบ</summary>
 
- เขียนคำตอบลงในช่องนี้
+<p>
+Pull-based ปลอดภัยกว่า Push-based เพราะเครื่อง Runner
+เป็นฝ่ายเริ่มต้นการเชื่อมต่อออกไป (Outbound connection)
+แทนที่จะเปิดรับคำสั่งจากภายนอก
+</p>
 
+<p><strong>เหตุผลด้านความปลอดภัย</strong></p>
+<ul>
+  <li>ไม่ต้องเปิดพอร์ตหรือปรับ Firewall เพื่อรับการเชื่อมต่อจากอินเทอร์เน็ต</li>
+  <li>ลดความเสี่ยงจากการโจมตี เช่น Remote Command Execution</li>
+  <li>GitHub ไม่สามารถสั่งรันคำสั่งบนเครื่อง Runner ได้โดยตรง</li>
+  <li>Runner จะรับงานเฉพาะจาก Repository ที่ลงทะเบียนไว้เท่านั้น</li>
+</ul>
 
 </details>
+
 
 ### 3. ทำไมต้องใช้ npm ci แทน npm install ใน production
 
 <details>
 <summary>คำตอบ</summary>
 
- เขียนคำตอบลงในช่องนี้
+<p>
+npm ci ถูกออกแบบมาสำหรับการใช้งานใน Production และระบบ CI/CD
+โดยเฉพาะ แตกต่างจาก npm install ที่เหมาะกับการพัฒนา (Development)
+</p>
 
+<p><strong>เหตุผลที่ควรใช้ npm ci</strong></p>
+<ul>
+  <li>ติดตั้ง dependency ตามไฟล์ package-lock.json แบบตรงเวอร์ชัน 100%</li>
+  <li>ลบ node_modules เดิมก่อนติดตั้ง ทำให้สภาพแวดล้อมสะอาด</li>
+  <li>ทำงานได้เร็วกว่า npm install</li>
+  <li>ลดปัญหาเวอร์ชันไม่ตรงกันระหว่างเครื่อง</li>
+</ul>
 
 </details>
+
 
 ### 4. ทำไมห้ามใช้ Self-Hosted Runner กับ Public Repository
 
 <details>
 <summary>คำตอบ</summary>
 
- เขียนคำตอบลงในช่องนี้
+<p>
+ไม่ควรใช้ Self-Hosted Runner กับ Public Repository
+เพราะใครก็สามารถแก้ไข Workflow ได้ ซึ่งอาจก่อให้เกิดความเสี่ยงต่อเครื่อง Runner
+</p>
 
+<p><strong>ความเสี่ยงที่อาจเกิดขึ้น</strong></p>
+<ul>
+  <li>ผู้ไม่หวังดีสามารถเขียน Workflow เพื่อรันคำสั่งอันตรายบนเครื่อง Runner</li>
+  <li>อาจขโมยข้อมูล Environment Variable หรือ Secrets</li>
+  <li>ใช้ทรัพยากรเครื่องไปในทางที่ไม่ได้รับอนุญาต เช่น Mining</li>
+</ul>
+
+<p>
+Self-Hosted Runner ควรใช้งานเฉพาะกับ Private Repository
+หรือ Repository ที่ควบคุมสิทธิ์ผู้ใช้งานได้เท่านั้น
+</p>
 
 </details>
+
 
 
 ### 5. Nginx คืออะไร และการทำ Revers Proxy ใน Nginx มีความสำคัญอย่างไร
 <details>
 <summary>คำตอบ</summary>
 
- เขียนคำตอบลงในช่องนี้
+<p>
+Nginx คือ Web Server และ Reverse Proxy ที่มีประสิทธิภาพสูง
+ใช้สำหรับรับ Request จากผู้ใช้งานแล้วส่งต่อไปยัง Backend Server
+เช่น Node.js หรือ API
+</p>
 
+<p><strong>ความสำคัญของ Reverse Proxy ใน Nginx</strong></p>
+<ul>
+  <li>ซ่อน Backend Server ไม่ให้ผู้ใช้งานเข้าถึงโดยตรง</li>
+  <li>ช่วยจัดการ Load Balancing และเพิ่มประสิทธิภาพของระบบ</li>
+  <li>รองรับ HTTPS และ SSL Termination</li>
+  <li>เพิ่มความปลอดภัยและความเสถียรของ Web Application</li>
+</ul>
 
 </details>
+
+
 ---
 
 ## เอกสารอ้างอิง
