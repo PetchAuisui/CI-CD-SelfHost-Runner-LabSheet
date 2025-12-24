@@ -1178,211 +1178,58 @@ docker logs nodejs-selfhosted-app
 
 ```powershell
 # monitor.ps1
-# CI/CD Deployment Monitor for Windows
+# เวอร์ชั่นเน้นความเสถียร (No Special Characters / Fix Quotes)
 
-Write-Host "════════════════════════════════════════" -ForegroundColor Cyan
-Write-Host "🔍 CI/CD Deployment Monitor (Windows)" -ForegroundColor White
-Write-Host "════════════════════════════════════════" -ForegroundColor Cyan
+$Separator = "****************************************"
+Write-Host $Separator -ForegroundColor Cyan
+Write-Host "--- CI/CD Deployment Monitor (Windows) ---" -ForegroundColor White
+Write-Host $Separator -ForegroundColor Cyan
 Write-Host ""
 
-# ═══════════════════════════════════════════════════════════
-# Check Runner Status
-# ═══════════════════════════════════════════════════════════
-Write-Host "📊 Runner Status:" -ForegroundColor Yellow
-
+# 1. Runner Status
+Write-Host "[1] Runner Status:" -ForegroundColor Yellow
 try {
-    $runnerProcess = Get-Process | Where-Object { 
-        $_.ProcessName -like "*Runner.Listener*" -or 
-        $_.ProcessName -like "*Runner.Worker*" 
-    }
-    
+    $runnerProcess = Get-Process | Where-Object { $_.ProcessName -like "*Runner*" } -ErrorAction SilentlyContinue
     if ($runnerProcess) {
-        Write-Host "  ✅ Runner: " -NoNewline -ForegroundColor Green
-        Write-Host "Running" -ForegroundColor White
-        
-        # แสดงรายละเอียด process
-        foreach ($proc in $runnerProcess) {
-            $cpuUsage = [math]::Round($proc.CPU, 2)
-            $memoryMB = [math]::Round($proc.WorkingSet / 1MB, 2)
-            Write-Host "     PID: $($proc.Id), CPU: $cpuUsage s, Memory: $memoryMB MB" -ForegroundColor Gray
-        }
+        Write-Host "  OK: Runner is Running" -ForegroundColor Green
     } else {
-        Write-Host "  ❌ Runner: " -NoNewline -ForegroundColor Red
-        Write-Host "Not Running" -ForegroundColor White
-        Write-Host "     Hint: Run '.\run.cmd' in C:\actions-runner" -ForegroundColor Gray
+        Write-Host "  FAIL: Runner is Not Running" -ForegroundColor Red
     }
 } catch {
-    Write-Host "  ⚠️  Error checking Runner: $($_.Exception.Message)" -ForegroundColor Yellow
+    Write-Host "  Error checking Runner"
+}
+Write-Host ""
+
+# 2. Container Status
+Write-Host "[2] Container Status:" -ForegroundColor Yellow
+function Check-App($containerName, $label) {
+    $state = docker inspect --format '{{.State.Status}} ({{.State.Health.Status}})' $containerName 2>$null
+    if ($state) {
+        Write-Host "  OK: ${label} is $state" -ForegroundColor Green
+    } else {
+        Write-Host "  FAIL: ${label} is Not Found" -ForegroundColor Red
+    }
+}
+Check-App "nodejs-selfhosted-app" "App"
+Check-App "nginx-selfhosted-proxy" "Nginx"
+Write-Host ""
+
+# 3. Endpoint Status
+Write-Host "[3] Endpoint Status:" -ForegroundColor Yellow
+try {
+    $resp = Invoke-WebRequest -Uri "http://localhost:8080/" -UseBasicParsing -TimeoutSec 5 -ErrorAction Stop
+    Write-Host "  OK: Root Endpoint (Status 200)" -ForegroundColor Green
+    $json = $resp.Content | ConvertFrom-Json
+    Write-Host "      Version: $($json.version)" -ForegroundColor Gray
+    Write-Host "      Message: $($json.message)" -ForegroundColor Gray
+} catch {
+    Write-Host "  FAIL: Cannot connect to http://localhost:8080/" -ForegroundColor Red
 }
 
 Write-Host ""
-
-# ═══════════════════════════════════════════════════════════
-# Check Docker Containers
-# ═══════════════════════════════════════════════════════════
-Write-Host "🐳 Container Status:" -ForegroundColor Yellow
-
-# Check App Container
-try {
-    $appContainer = docker ps --filter "name=nodejs-selfhosted-app" --format "{{.Names}}" 2>$null
-    
-    if ($appContainer) {
-        Write-Host "  ✅ App: " -NoNewline -ForegroundColor Green
-        Write-Host "Running" -ForegroundColor White
-        
-        $appStatus = docker ps --filter "name=nodejs-selfhosted-app" --format "{{.Status}}" 2>$null
-        Write-Host "     Uptime: $appStatus" -ForegroundColor Gray
-        
-        # Check health
-        $appHealth = docker inspect nodejs-selfhosted-app --format "{{.State.Health.Status}}" 2>$null
-        if ($appHealth) {
-            $healthColor = if ($appHealth -eq "healthy") { "Green" } else { "Yellow" }
-            Write-Host "     Health: $appHealth" -ForegroundColor $healthColor
-        }
-    } else {
-        Write-Host "  ❌ App: " -NoNewline -ForegroundColor Red
-        Write-Host "Not Running" -ForegroundColor White
-        Write-Host "     Hint: Run 'docker-compose up -d'" -ForegroundColor Gray
-    }
-} catch {
-    Write-Host "  ⚠️  Error checking App container: $($_.Exception.Message)" -ForegroundColor Yellow
-}
-
-# Check Nginx Container
-try {
-    $nginxContainer = docker ps --filter "name=nginx-selfhosted-proxy" --format "{{.Names}}" 2>$null
-    
-    if ($nginxContainer) {
-        Write-Host "  ✅ Nginx: " -NoNewline -ForegroundColor Green
-        Write-Host "Running" -ForegroundColor White
-        
-        $nginxStatus = docker ps --filter "name=nginx-selfhosted-proxy" --format "{{.Status}}" 2>$null
-        Write-Host "     Uptime: $nginxStatus" -ForegroundColor Gray
-    } else {
-        Write-Host "  ❌ Nginx: " -NoNewline -ForegroundColor Red
-        Write-Host "Not Running" -ForegroundColor White
-    }
-} catch {
-    Write-Host "  ⚠️  Error checking Nginx container: $($_.Exception.Message)" -ForegroundColor Yellow
-}
-
-Write-Host ""
-
-# ═══════════════════════════════════════════════════════════
-# Check Endpoints
-# ═══════════════════════════════════════════════════════════
-Write-Host "🌐 Endpoint Status:" -ForegroundColor Yellow
-
-# Health Endpoint
-try {
-    $healthResponse = Invoke-WebRequest -Uri "http://localhost:8080/health" -UseBasicParsing -TimeoutSec 3 -ErrorAction Stop
-    
-    if ($healthResponse.StatusCode -eq 200) {
-        Write-Host "  ✅ Health: " -NoNewline -ForegroundColor Green
-        Write-Host "$($healthResponse.StatusCode)" -ForegroundColor White
-        
-        # Parse JSON response
-        $healthContent = $healthResponse.Content | ConvertFrom-Json
-        if ($healthContent.status) {
-            Write-Host "     Status: $($healthContent.status)" -ForegroundColor Gray
-        }
-        if ($healthContent.uptime) {
-            Write-Host "     Uptime: $($healthContent.uptime) seconds" -ForegroundColor Gray
-        }
-    } else {
-        Write-Host "  ⚠️  Health: " -NoNewline -ForegroundColor Yellow
-        Write-Host "$($healthResponse.StatusCode)" -ForegroundColor White
-    }
-} catch {
-    Write-Host "  ❌ Health: " -NoNewline -ForegroundColor Red
-    Write-Host "Connection Failed" -ForegroundColor White
-}
-
-# Root Endpoint
-try {
-    $rootResponse = Invoke-WebRequest -Uri "http://localhost:8080/" -UseBasicParsing -TimeoutSec 3 -ErrorAction Stop
-    
-    if ($rootResponse.StatusCode -eq 200) {
-        Write-Host "  ✅ Root: " -NoNewline -ForegroundColor Green
-        Write-Host "$($rootResponse.StatusCode)" -ForegroundColor White
-        
-        # Parse JSON response
-        $rootContent = $rootResponse.Content | ConvertFrom-Json
-        if ($rootContent.version) {
-            Write-Host "     Version: $($rootContent.version)" -ForegroundColor Gray
-        }
-        if ($rootContent.message) {
-            Write-Host "     Message: $($rootContent.message)" -ForegroundColor Gray
-        }
-    } else {
-        Write-Host "  ⚠️  Root: " -NoNewline -ForegroundColor Yellow
-        Write-Host "$($rootResponse.StatusCode)" -ForegroundColor White
-    }
-} catch {
-    Write-Host "  ❌ Root: " -NoNewline -ForegroundColor Red
-    Write-Host "Connection Failed" -ForegroundColor White
-}
-
-Write-Host ""
-
-# ═══════════════════════════════════════════════════════════
-# Resource Usage
-# ═══════════════════════════════════════════════════════════
-Write-Host "💾 Resource Usage:" -ForegroundColor Yellow
-
-try {
-    $dockerStats = docker stats --no-stream --format "table {{.Container}}\t{{.CPUPerc}}\t{{.MemUsage}}" 2>$null
-    
-    if ($dockerStats) {
-        $dockerStats | ForEach-Object {
-            Write-Host "  $_" -ForegroundColor White
-        }
-    } else {
-        Write-Host "  No containers running" -ForegroundColor Gray
-    }
-} catch {
-    Write-Host "  ⚠️  Error getting Docker stats: $($_.Exception.Message)" -ForegroundColor Yellow
-}
-
-Write-Host ""
-
-# ═══════════════════════════════════════════════════════════
-# System Information
-# ═══════════════════════════════════════════════════════════
-Write-Host "💻 System Information:" -ForegroundColor Yellow
-
-# Docker Version
-try {
-    $dockerVersion = docker version --format "{{.Server.Version}}" 2>$null
-    Write-Host "  Docker: v$dockerVersion" -ForegroundColor White
-} catch {
-    Write-Host "  Docker: Not installed or not running" -ForegroundColor Red
-}
-
-# Node.js Version
-try {
-    $nodeVersion = node --version 2>$null
-    Write-Host "  Node.js: $nodeVersion" -ForegroundColor White
-} catch {
-    Write-Host "  Node.js: Not installed" -ForegroundColor Red
-}
-
-# NPM Version
-try {
-    $npmVersion = npm --version 2>$null
-    Write-Host "  NPM: v$npmVersion" -ForegroundColor White
-} catch {
-    Write-Host "  NPM: Not installed" -ForegroundColor Red
-}
-
-# Windows Version
-$windowsVersion = (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion").ProductName
-Write-Host "  OS: $windowsVersion" -ForegroundColor White
-
-Write-Host ""
-Write-Host "════════════════════════════════════════" -ForegroundColor Cyan
+Write-Host $Separator -ForegroundColor Cyan
 Write-Host "Last updated: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')" -ForegroundColor Gray
-Write-Host "════════════════════════════════════════" -ForegroundColor Cyan
+Write-Host $Separator -ForegroundColor Cyan
 ```
 
 #### 8.2 ใช้ Monitoring Script
@@ -1392,8 +1239,10 @@ Write-Host "══════════════════════�
 ```powershell
 # Run once
 .\monitor.ps1
+```
 
-# Run continuously (every 10 seconds)
+### Run continuously (every 10 seconds) :ยกเลิกโดยกด Ctrl+C
+```powershell
 while ($true) {
   Clear-Host
   .\monitor.ps1
